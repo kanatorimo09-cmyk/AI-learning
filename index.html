@@ -674,6 +674,7 @@ oninput="saveCurrentQuiz()">
         });
       }
 
+      if (typeof renderQuestionTools === "function") renderQuestionTools(data);
 　　saveCurrentQuiz();
         
     }
@@ -779,6 +780,7 @@ oninput="saveCurrentQuiz()">
     function processFeedback(isCorrect) {
       const overlay = document.getElementById("feedbackOverlay");
       const currentData = activeQuizData[quizIndex];
+      if (typeof recordLearningAttempt === "function") recordLearningAttempt(isCorrect, currentData);
 
       if (isCorrect) {
         scoreCount++;
@@ -1086,5 +1088,46 @@ if (!confirm("一時停止中の問題を終了しますか？")) return;
         ✖ やめる
     </button>
 </div>
+
+<style>
+#studyToolsBtn{position:fixed;right:18px;bottom:18px;z-index:1500;border:0;border-radius:999px;padding:12px 16px;background:#2563eb;color:#fff;font:700 14px inherit;cursor:pointer;box-shadow:0 5px 18px #0003}
+#studyPanel{display:none;position:fixed;inset:0;z-index:1600;background:#0007;padding:22px;overflow:auto}
+#studyPanel .panel{max-width:760px;margin:auto;background:#fff;border-radius:20px;padding:22px;color:#111827}
+#studyPanel h2{margin:0 0 12px}.tool-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}.tool-card{border:1px solid #e5e7eb;border-radius:12px;padding:12px}.tool-card button,.tool-card input,.tool-card select{width:100%;box-sizing:border-box;margin-top:7px;padding:8px;border-radius:8px;border:1px solid #d1d5db}.tool-card button{background:#eff6ff;cursor:pointer}.tool-card button:hover{background:#dbeafe}.tool-close{float:right;border:0;background:none;font-size:24px;cursor:pointer}.mini-tools{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:-18px 0 12px}.mini-tools button{border:0;border-radius:999px;background:#eef2ff;padding:7px 10px;cursor:pointer}.dark-ui{filter:invert(.9) hue-rotate(180deg)}.large-text .quiz-question{font-size:28px}.large-text .quiz-opt-btn,.large-text .quiz-text-field{font-size:21px}.result-row{padding:7px;border-bottom:1px solid #eee;font-size:13px}.bar{height:8px;background:#dbeafe;border-radius:999px;overflow:hidden}.bar i{display:block;height:100%;background:#2563eb}
+</style>
+<button id="studyToolsBtn" type="button">📚 学習ツール</button>
+<div id="studyPanel" aria-hidden="true"><div class="panel"><button class="tool-close" onclick="toggleStudyPanel()">×</button><h2>学習ツール</h2><div id="toolSummary"></div><div class="tool-grid">
+<div class="tool-card"><b>問題検索</b><input id="questionSearch" placeholder="単元・問題を検索"><button onclick="searchQuestions()">検索</button><div id="searchResults"></div></div>
+<div class="tool-card"><b>復習</b><button onclick="startReviewMode('wrong')">間違えた問題を復習</button><button onclick="startReviewMode('favorite')">お気に入りを復習</button><button onclick="startReviewMode('random')">ランダム出題</button></div>
+<div class="tool-card"><b>目標・表示</b><input id="dailyGoal" type="number" min="1" placeholder="今日の目標（問）"><button onclick="saveDailyGoal()">目標を保存</button><button onclick="toggleClass('dark-ui')">ダークモード</button><button onclick="toggleClass('large-text')">文字を大きくする</button></div>
+<div class="tool-card"><b>データ</b><button onclick="exportLearningData()">学習記録を保存</button><input id="importFile" type="file" accept="application/json"><button onclick="importLearningData()">学習記録を復元</button></div>
+<div class="tool-card"><b>分析</b><button onclick="showLearningHistory()">正答率・学習履歴</button><div id="historyResults"></div></div>
+<div class="tool-card"><b>今日のおすすめ</b><button onclick="recommendStudy()">おすすめを表示</button><div id="recommendation"></div></div>
+</div></div></div>
+<script>
+const LEARN_KEY="aiLearningToolsV1";
+let learningTools=JSON.parse(localStorage.getItem(LEARN_KEY)||'{"attempts":[],"favorites":[],"goal":10,"xp":0,"streak":0,"lastDate":""}');
+function saveLearningTools(){localStorage.setItem(LEARN_KEY,JSON.stringify(learningTools));}
+function questionId(data){return [currentYear,activeSubjectKey,activeQuizIndex,quizIndex,data.q||data.text].join("|");}
+function recordLearningAttempt(correct,data){const id=questionId(data), today=new Date().toISOString().slice(0,10);learningTools.attempts.push({id,correct,subject:activeSubjectKey,year:currentYear,unit:activeQuizIndex,q:data.q||data.text,data:data,at:Date.now()});if(learningTools.attempts.length>1200)learningTools.attempts.shift();if(correct){learningTools.xp=(learningTools.xp||0)+10;if(learningTools.lastDate!==today){const y=new Date(Date.now()-86400000).toISOString().slice(0,10);learningTools.streak=learningTools.lastDate===y?(learningTools.streak||0)+1:1;learningTools.lastDate=today;}}saveLearningTools();playFeedbackSound(correct);}
+function toggleFavorite(){const data=activeQuizData[quizIndex],id=questionId(data),i=learningTools.favorites.findIndex(x=>x.id===id);if(i>=0)learningTools.favorites.splice(i,1);else learningTools.favorites.push({id,q:data.q||data.text,subject:activeSubjectKey,year:currentYear,unit:activeQuizIndex,data});saveLearningTools();renderQuestionTools(data);}
+function renderQuestionTools(data){let box=document.getElementById("questionMiniTools");if(!box){box=document.createElement("div");box.id="questionMiniTools";box.className="mini-tools";document.getElementById("quizQuestion").insertAdjacentElement("afterend",box);}const fav=learningTools.favorites.some(x=>x.id===questionId(data));box.innerHTML='<button onclick="toggleFavorite()">'+(fav?"★ お気に入り":"☆ お気に入り")+'</button><button onclick="speakCurrentQuestion()">🔊 読み上げ</button><button onclick="skipQuestion()">⏭ スキップ</button><button onclick="reportQuestion()">⚑ 報告</button>';}
+function skipQuestion(){if(isProcessingAnswer)return;if(!confirm("この問題をスキップしますか？"))return;quizIndex++;if(quizIndex<activeQuizData.length)showQuestion();else showResult();}
+function speakCurrentQuestion(){const d=activeQuizData[quizIndex];if("speechSynthesis"in window){speechSynthesis.cancel();speechSynthesis.speak(new SpeechSynthesisUtterance(d.q||d.text));}}
+function reportQuestion(){const d=activeQuizData[quizIndex],msg=prompt("問題の報告内容を入力してください");if(msg){const a=JSON.parse(localStorage.getItem("aiLearningReports")||"[]");a.push({q:d.q||d.text,msg,at:Date.now()});localStorage.setItem("aiLearningReports",JSON.stringify(a));alert("報告を保存しました。");}}
+function playFeedbackSound(ok){try{const c=new AudioContext(),o=c.createOscillator(),g=c.createGain();o.frequency.value=ok?660:180;g.gain.value=.05;o.connect(g);g.connect(c.destination);o.start();o.stop(c.currentTime+.12);}catch(e){}}
+function toggleStudyPanel(){const p=document.getElementById("studyPanel");p.style.display=p.style.display==="block"?"none":"block";p.setAttribute("aria-hidden",p.style.display!=="block");if(p.style.display==="block")renderToolSummary();}
+function renderToolSummary(){const a=learningTools.attempts,correct=a.filter(x=>x.correct).length,pct=a.length?Math.round(correct/a.length*100):0;document.getElementById("toolSummary").innerHTML="レベル "+(Math.floor((learningTools.xp||0)/100)+1)+" ／ XP "+(learningTools.xp||0)+" ／ 連続学習 "+(learningTools.streak||0)+"日 ／ 正答率 "+pct+"%";}
+function toggleClass(name){document.body.classList.toggle(name);}
+function saveDailyGoal(){learningTools.goal=Math.max(1,Number(document.getElementById("dailyGoal").value)||10);saveLearningTools();renderToolSummary();}
+function searchQuestions(){const term=document.getElementById("questionSearch").value.trim().toLowerCase(),out=[];for(const [year,subs] of Object.entries(database||{}))for(const [subject,v] of Object.entries(subs))Object.entries(v.quizzes||{}).forEach(([unit,qs])=>qs.forEach((q,i)=>{const text=(q.q||q.text||"")+" "+(v.list?.[unit]||"");if(text.toLowerCase().includes(term))out.push({year,subject,unit,i,text:q.q||q.text});}));document.getElementById("searchResults").innerHTML=out.slice(0,12).map(x=>'<div class="result-row">'+x.year+" "+x.subject+"："+x.text+'</div>').join("")||"見つかりませんでした。";}
+function startReviewMode(mode){let pool=mode==="favorite"?learningTools.favorites.map(x=>x.data):learningTools.attempts.filter(x=>!x.correct&&x.data).slice(-80).map(x=>x.data);if(mode==="random"){pool=[];for(const s of Object.values(database[currentYear]||{}))for(const qs of Object.values(s.quizzes||{}))pool.push(...qs);pool.sort(()=>Math.random()-.5);pool=pool.slice(0,10);}if(!pool.length){alert("復習できる問題がありません。");return;}activeQuizData=pool;activeStorageKey="review-"+mode;quizIndex=0;scoreCount=0;document.getElementById("mainMenu").style.display="none";document.getElementById("subjectPage").style.display="none";document.getElementById("quizPage").style.display="flex";document.getElementById("quizContent").style.display="flex";document.getElementById("quizResult").style.display="none";showQuestion();toggleStudyPanel();}
+function showLearningHistory(){const a=learningTools.attempts.slice(-50),group={};a.forEach(x=>{const k=x.year+" "+x.subject;group[k]=group[k]||[0,0];group[k][0]++;if(x.correct)group[k][1]++;});document.getElementById("historyResults").innerHTML=Object.entries(group).map(([k,[n,c]])=>'<div class="result-row">'+k+" "+c+"/"+n+'<div class="bar"><i style="width:'+(n?c/n*100:0)+'%"></i></div></div>').join("")||"まだ記録がありません。";}
+function recommendStudy(){const wrong=learningTools.attempts.filter(x=>!x.correct).slice(-1)[0];document.getElementById("recommendation").textContent=wrong?"「"+wrong.q+"」を復習しましょう。":"まず好きな教科から始めましょう。";}
+function exportLearningData(){const blob=new Blob([JSON.stringify(learningTools)],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="ai-learning-backup.json";a.click();URL.revokeObjectURL(a.href);}
+function importLearningData(){const f=document.getElementById("importFile").files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{learningTools=JSON.parse(r.result);saveLearningTools();alert("復元しました。");}catch(e){alert("ファイルを読み込めませんでした。");}};r.readAsText(f);}
+document.getElementById("studyToolsBtn").onclick=toggleStudyPanel;
+</script>
+
 </body>
 </html>
