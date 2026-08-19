@@ -1,0 +1,2 @@
+GitHub write permission test.
+This file is temporary and will be deleted after the test.
