@@ -124,3 +124,8 @@ function makeEnglishQuestions(items) {
     { type:"input", q:"確認：" + q, a:a }
   ]);
 }
+
+// 英語の語順並べ替え問題
+quizDatabase["1year"].eigo.quizzes["0"].push({type:"order",q:"語を正しい順に並べて「私は生徒です。」という文を作りなさい。",words:["I","am","a","student."],a:"I am a student."});
+quizDatabase["2year"].eigo.quizzes["0"].push({type:"order",q:"語を正しい順に並べて「私は昨日サッカーをした。」という文を作りなさい。",words:["I","played","soccer","yesterday."],a:"I played soccer yesterday."});
+quizDatabase["3year"].eigo.quizzes["0"].push({type:"order",q:"語を正しい順に並べて「私は京都を訪れたことがある。」という文を作りなさい。",words:["I","have","visited","Kyoto."],a:"I have visited Kyoto."});
