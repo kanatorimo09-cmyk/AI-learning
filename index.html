@@ -627,7 +627,15 @@ window.addEventListener("DOMContentLoaded", () => {
 
       const presentation = getQuestionPresentation(data, quizIndex);
 
-      if (presentation.mode === "input") {
+      if (data.type === "order") {
+        inputArea.style.display = "flex";
+        document.getElementById("submitAnswerBtn").style.display = "inline-block";
+        window.orderAnswer = [];
+        const words = [...data.words].sort(() => Math.random() - 0.5);
+        fieldContainer.innerHTML = '<div id="orderAnswer" style="min-height:42px;padding:10px;border:1px solid #93c5fd;border-radius:10px;margin-bottom:10px;"></div><div id="orderWords" style="display:flex;flex-wrap:wrap;gap:8px;"></div>';
+        words.forEach(word => { const b=document.createElement("button"); b.type="button"; b.className="quiz-opt-btn"; b.style.width="auto"; b.innerText=word; b.onclick=()=>{window.orderAnswer.push(word);document.getElementById("orderAnswer").innerText=window.orderAnswer.join(" ");b.disabled=true;};document.getElementById("orderWords").appendChild(b);});
+        document.getElementById("submitAnswerBtn").onclick = checkOrderAnswer;
+      } else if (presentation.mode === "input") {
         // 通常のキーボード入力形式
         inputArea.style.display = "flex";
         document.getElementById("submitAnswerBtn").style.display = "inline-block";
@@ -736,6 +744,15 @@ oninput="saveCurrentQuiz()">
       const payload = await response.json();
       const text = payload?.candidates?.[0]?.content?.parts?.[0]?.text;
       return JSON.parse(text).correct === true;
+    }
+
+    function checkOrderAnswer() {
+      if (isProcessingAnswer) return;
+      const data = activeQuizData[quizIndex];
+      const answer = (window.orderAnswer || []).join(" ").trim();
+      if (!answer) { alert("語を順番に選んでください。"); return; }
+      isProcessingAnswer = true;
+      processFeedback(answer === data.a);
     }
 
     // 4択問題の正誤判定
