@@ -1127,6 +1127,7 @@ function recommendStudy(){const wrong=learningTools.attempts.filter(x=>!x.correc
 function exportLearningData(){const blob=new Blob([JSON.stringify(learningTools)],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="ai-learning-backup.json";a.click();URL.revokeObjectURL(a.href);}
 function importLearningData(){const f=document.getElementById("importFile").files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{learningTools=JSON.parse(r.result);saveLearningTools();alert("復元しました。");}catch(e){alert("ファイルを読み込めませんでした。");}};r.readAsText(f);}
 document.getElementById("studyToolsBtn").onclick=toggleStudyPanel;
+if("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js").catch(()=>{});
 </script>
 
 </body>
