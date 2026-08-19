@@ -675,6 +675,7 @@ oninput="saveCurrentQuiz()">
       }
 
       if (typeof renderQuestionTools === "function") renderQuestionTools(data);
+      if (typeof startQuizTimer === "function" && !quizTimer) startQuizTimer();
 　　saveCurrentQuiz();
         
     }
@@ -832,6 +833,7 @@ overlay.className = "feedback-overlay correct";
 
     // 全問終了したあ後の結果画面処理
     function showResult() {
+      if (typeof quizTimer !== "undefined") { clearInterval(quizTimer); quizTimer = null; }
 
       localStorage.removeItem("currentQuiz");
       document.getElementById("quizContent").style.display = "none";
@@ -1103,6 +1105,8 @@ if (!confirm("一時停止中の問題を終了しますか？")) return;
 <div class="tool-card"><b>データ</b><button onclick="exportLearningData()">学習記録を保存</button><input id="importFile" type="file" accept="application/json"><button onclick="importLearningData()">学習記録を復元</button></div>
 <div class="tool-card"><b>分析</b><button onclick="showLearningHistory()">正答率・学習履歴</button><div id="historyResults"></div></div>
 <div class="tool-card"><b>今日のおすすめ</b><button onclick="recommendStudy()">おすすめを表示</button><div id="recommendation"></div></div>
+<div class="tool-card"><b>テスト・難易度</b><select id="difficulty"><option value="all">すべての難易度</option><option value="easy">やさしい</option><option value="normal">ふつう</option><option value="hard">むずかしい</option></select><button onclick="startYearTest()">学年別総合テスト</button><button onclick="startUnitFinalTest()">今の単元の最終テスト</button></div>
+<div class="tool-card"><b>バッジ</b><button onclick="showBadges()">バッジを見る</button><div id="badgeResults"></div></div>
 </div></div></div>
 <script>
 const LEARN_KEY="aiLearningToolsV1";
@@ -1111,7 +1115,7 @@ function saveLearningTools(){localStorage.setItem(LEARN_KEY,JSON.stringify(learn
 function questionId(data){return [currentYear,activeSubjectKey,activeQuizIndex,quizIndex,data.q||data.text].join("|");}
 function recordLearningAttempt(correct,data){const id=questionId(data), today=new Date().toISOString().slice(0,10);learningTools.attempts.push({id,correct,subject:activeSubjectKey,year:currentYear,unit:activeQuizIndex,q:data.q||data.text,data:data,at:Date.now()});if(learningTools.attempts.length>1200)learningTools.attempts.shift();if(correct){learningTools.xp=(learningTools.xp||0)+10;if(learningTools.lastDate!==today){const y=new Date(Date.now()-86400000).toISOString().slice(0,10);learningTools.streak=learningTools.lastDate===y?(learningTools.streak||0)+1:1;learningTools.lastDate=today;}}saveLearningTools();playFeedbackSound(correct);}
 function toggleFavorite(){const data=activeQuizData[quizIndex],id=questionId(data),i=learningTools.favorites.findIndex(x=>x.id===id);if(i>=0)learningTools.favorites.splice(i,1);else learningTools.favorites.push({id,q:data.q||data.text,subject:activeSubjectKey,year:currentYear,unit:activeQuizIndex,data});saveLearningTools();renderQuestionTools(data);}
-function renderQuestionTools(data){let box=document.getElementById("questionMiniTools");if(!box){box=document.createElement("div");box.id="questionMiniTools";box.className="mini-tools";document.getElementById("quizQuestion").insertAdjacentElement("afterend",box);}const fav=learningTools.favorites.some(x=>x.id===questionId(data));box.innerHTML='<button onclick="toggleFavorite()">'+(fav?"★ お気に入り":"☆ お気に入り")+'</button><button onclick="speakCurrentQuestion()">🔊 読み上げ</button><button onclick="skipQuestion()">⏭ スキップ</button><button onclick="reportQuestion()">⚑ 報告</button>';}
+function renderQuestionTools(data){let box=document.getElementById("questionMiniTools");if(!box){box=document.createElement("div");box.id="questionMiniTools";box.className="mini-tools";document.getElementById("quizQuestion").insertAdjacentElement("afterend",box);}const fav=learningTools.favorites.some(x=>x.id===questionId(data));box.innerHTML='<button onclick="toggleFavorite()">'+(fav?"★ お気に入り":"☆ お気に入り")+'</button><button onclick="speakCurrentQuestion()">🔊 読み上げ</button><button onclick="skipQuestion()">⏭ スキップ</button><button onclick="showHint()">💡 ヒント</button><button onclick="showExplanation()">📖 解説</button><button onclick="reportQuestion()">⚑ 報告</button>';}
 function skipQuestion(){if(isProcessingAnswer)return;if(!confirm("この問題をスキップしますか？"))return;quizIndex++;if(quizIndex<activeQuizData.length)showQuestion();else showResult();}
 function speakCurrentQuestion(){const d=activeQuizData[quizIndex];if("speechSynthesis"in window){speechSynthesis.cancel();speechSynthesis.speak(new SpeechSynthesisUtterance(d.q||d.text));}}
 function reportQuestion(){const d=activeQuizData[quizIndex],msg=prompt("問題の報告内容を入力してください");if(msg){const a=JSON.parse(localStorage.getItem("aiLearningReports")||"[]");a.push({q:d.q||d.text,msg,at:Date.now()});localStorage.setItem("aiLearningReports",JSON.stringify(a));alert("報告を保存しました。");}}
@@ -1124,6 +1128,14 @@ function searchQuestions(){const term=document.getElementById("questionSearch").
 function startReviewMode(mode){let pool=mode==="favorite"?learningTools.favorites.map(x=>x.data):learningTools.attempts.filter(x=>!x.correct&&x.data).slice(-80).map(x=>x.data);if(mode==="random"){pool=[];for(const s of Object.values(database[currentYear]||{}))for(const qs of Object.values(s.quizzes||{}))pool.push(...qs);pool.sort(()=>Math.random()-.5);pool=pool.slice(0,10);}if(!pool.length){alert("復習できる問題がありません。");return;}activeQuizData=pool;activeStorageKey="review-"+mode;quizIndex=0;scoreCount=0;document.getElementById("mainMenu").style.display="none";document.getElementById("subjectPage").style.display="none";document.getElementById("quizPage").style.display="flex";document.getElementById("quizContent").style.display="flex";document.getElementById("quizResult").style.display="none";showQuestion();toggleStudyPanel();}
 function showLearningHistory(){const a=learningTools.attempts.slice(-50),group={};a.forEach(x=>{const k=x.year+" "+x.subject;group[k]=group[k]||[0,0];group[k][0]++;if(x.correct)group[k][1]++;});document.getElementById("historyResults").innerHTML=Object.entries(group).map(([k,[n,c]])=>'<div class="result-row">'+k+" "+c+"/"+n+'<div class="bar"><i style="width:'+(n?c/n*100:0)+'%"></i></div></div>').join("")||"まだ記録がありません。";}
 function recommendStudy(){const wrong=learningTools.attempts.filter(x=>!x.correct).slice(-1)[0];document.getElementById("recommendation").textContent=wrong?"「"+wrong.q+"」を復習しましょう。":"まず好きな教科から始めましょう。";}
+let quizTimer=null, quizSeconds=0, quizLimit=0;
+function startQuizTimer(){clearInterval(quizTimer);quizSeconds=0;quizLimit=Number(localStorage.getItem("aiLearningTimeLimit")||0);let el=document.getElementById("quizTimer");if(!el){el=document.createElement("span");el.id="quizTimer";document.querySelector(".quiz-header").appendChild(el);}quizTimer=setInterval(()=>{quizSeconds++;const remain=quizLimit?Math.max(0,quizLimit-quizSeconds):0;el.textContent=quizLimit?"⏱ "+Math.floor(remain/60)+":"+String(remain%60).padStart(2,"0"):"⏱ "+Math.floor(quizSeconds/60)+":"+String(quizSeconds%60).padStart(2,"0");if(quizLimit&&remain<=0){clearInterval(quizTimer);alert("時間切れです");showResult();}},1000);}
+function startYearTest(){let pool=[];for(const subject of Object.values(database[currentYear]||{}))for(const qs of Object.values(subject.quizzes||{}))pool.push(...qs);pool.sort(()=>Math.random()-.5);startCustomTest(pool.slice(0,20),"year-test");}
+function startUnitFinalTest(){const pool=(activeQuizData||[]).slice().sort(()=>Math.random()-.5).slice(0,Math.min(20,activeQuizData.length));if(!pool.length){alert("先に単元を開いてください。");return;}startCustomTest(pool,"unit-final");}
+function startCustomTest(pool,name){if(!pool.length)return;activeQuizData=pool;activeStorageKey=name;quizIndex=0;scoreCount=0;document.getElementById("mainMenu").style.display="none";document.getElementById("subjectPage").style.display="none";document.getElementById("quizPage").style.display="flex";document.getElementById("quizContent").style.display="flex";document.getElementById("quizResult").style.display="none";startQuizTimer();showQuestion();toggleStudyPanel();}
+function showBadges(){const a=learningTools.attempts,c=a.filter(x=>x.correct).length,b=[];if(a.length>=1)b.push("🌱 はじめの一歩");if(c>=10)b.push("⭐ 10問正解");if(c>=100)b.push("🏆 100問正解");if(learningTools.streak>=7)b.push("🔥 7日連続");if(learningTools.favorites.length>=5)b.push("📌 お気に入り達人");document.getElementById("badgeResults").textContent=b.join("　")||"まだバッジはありません。";}
+function showHint(){const d=activeQuizData[quizIndex],a=Array.isArray(d.a)?d.a[0]:(Array.isArray(d.opts)&&typeof d.a==="number"?d.opts[d.a]:d.a);alert("ヒント："+String(a).slice(0,Math.max(1,Math.ceil(String(a).length/2)))+"…");}
+function showExplanation(){const d=activeQuizData[quizIndex],a=Array.isArray(d.a)?d.a.join(" / "):(Array.isArray(d.opts)&&typeof d.a==="number"?d.opts[d.a]:d.a);alert("解説：正解は「"+a+"」です。問題文の重要な言葉を確認しましょう。");}
 function exportLearningData(){const blob=new Blob([JSON.stringify(learningTools)],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="ai-learning-backup.json";a.click();URL.revokeObjectURL(a.href);}
 function importLearningData(){const f=document.getElementById("importFile").files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{learningTools=JSON.parse(r.result);saveLearningTools();alert("復元しました。");}catch(e){alert("ファイルを読み込めませんでした。");}};r.readAsText(f);}
 document.getElementById("studyToolsBtn").onclick=toggleStudyPanel;
